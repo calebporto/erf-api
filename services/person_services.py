@@ -12,16 +12,8 @@ async def new_person_pf(new_person, new_person_data):
     async with async_session() as session:
         np, npd = new_person, new_person_data
         if np.doctype == 2:
-            session.add(Error_Logs(
-                'doctype incorreto', datetime.now(), None, 1, 'service new_person_pf'
-            ))
-            await session.commit()
             raise HTTPException(status_code=400, detail='Tipo de usuário incorreto. Use o endpoint add-person-pj')
         elif np.doctype != 1:
-            session.add(Error_Logs(
-                'doctype incorreto', datetime.now(), None, 1, 'service new_person_pf'
-            ))
-            await session.commit()
             raise HTTPException(status_code=400, detail='Tipo de usuário incorreto. O campo doctype deve ser 1 ou 2.')
         try:
             # Adicionando person
@@ -74,7 +66,7 @@ async def new_person_pf(new_person, new_person_data):
                 await session.execute(delete(Person).where(Person.id == person_id))
                 await session.commit()
                 raise HTTPException(status_code=400, detail='Já existe usuário com os dados fornecidos.')
-            if 'duplicate key value violates unique constraint "person' in str(error):
+            elif 'duplicate key value violates unique constraint "person' in str(error):
                 raise HTTPException(status_code=400, detail='Já existe usuário com os dados fornecidos.')
             raise HTTPException(status_code=400, detail='Erro na requisição, verifique os dados.')
 
@@ -82,16 +74,8 @@ async def new_person_pj(new_person, new_person_data):
     async with async_session() as session:
         np, npd = new_person, new_person_data
         if np.doctype == 1:
-            session.add(Error_Logs(
-                'doctype incorreto', datetime.now(), None, 1, 'service new_person_pj'
-            ))
-            await session.commit()
             raise HTTPException(status_code=400, detail='Tipo de usuário incorreto. Use o endpoint add-person-pf')
         elif np.doctype != 2:
-            session.add(Error_Logs(
-                'doctype incorreto', datetime.now(), None, 1, 'service new_person_pj'
-            ))
-            await session.commit()
             raise HTTPException(status_code=400, detail='Tipo de usuário incorreto. O campo doctype deve ser 1 ou 2.')
         try:
             # Adicionando person
@@ -146,14 +130,10 @@ async def new_person_pj(new_person, new_person_data):
                 raise HTTPException(status_code=400, detail='Já existe usuário com os dados fornecidos.')
             raise HTTPException(status_code=400, detail='Erro na requisição, verifique os dados.')
 
-async def person_pf_update(person, person_data):
+async def person_pf_update_(person, person_data):
     async with async_session() as session:
         p, pd = person, person_data
         if p.doctype:
-            session.add(Error_Logs(
-                'Não é possível alterar doctype', datetime.now(), None, 1, 'service person_pf_update'
-            ))
-            await session.commit()
             raise HTTPException(status_code=400, detail='Não é possível alterar doctype')
         try:
             result = await session.execute(
@@ -191,21 +171,19 @@ async def person_pf_update(person, person_data):
             session.add(p_db)
             session.add(pd_db)
             await session.commit()
+            return Standard_Output(message='Operação efetuada com sucesso.')
         except Exception as error:
+            await session.close()
             session.add(Error_Logs(
                 str(error), datetime.now(), None, 1, 'service person_pf_update'
             ))
             await session.commit()
             raise HTTPException(status_code=400, detail='Erro na requisição, verifique os dados.')
 
-async def person_pj_update(person, person_data):
+async def person_pj_update_(person, person_data):
     async with async_session() as session:
         p, pd = person, person_data
         if p.doctype:
-            session.add(Error_Logs(
-                'Não é possível alterar doctype', datetime.now(), None, 1, 'service person_pf_update'
-            ))
-            await session.commit()
             raise HTTPException(status_code=400, detail='Não é possível alterar doctype')
         try:
             result = await session.execute(
@@ -243,7 +221,9 @@ async def person_pj_update(person, person_data):
             session.add(p_db)
             session.add(pd_db)
             await session.commit()
+            return Standard_Output(message='Operação efetuada com sucesso.')
         except Exception as error:
+            await session.close()
             session.add(Error_Logs(
                 str(error), datetime.now(), None, 1, 'service person_pj_update'
             ))
@@ -293,7 +273,7 @@ async def get_simple_person_(type_data, p_data):
                     'type incorreto', datetime.now(), None, 1, 'service get_simple_person')
                 )
                 await session.commit()
-                raise ParamError(status_code=400, detail='O campo type está incorreto.')
+                raise HTTPException(status_code=400, detail='O campo type está incorreto.')
 
             for i, item in enumerate(person):
                 person_db = Person_(
@@ -309,9 +289,10 @@ async def get_simple_person_(type_data, p_data):
                 )
                 person[i] = person_db
             return person
-        except ParamError as error:
+        except HTTPException as error:
             raise HTTPException(status_code=error.status_code, detail=error.detail)
         except Exception as error:
+            await session.close()
             session.add(Error_Logs(
                 str(error), datetime.now(), None, 1, 'service get_simple_person_'
             ))
@@ -381,7 +362,7 @@ async def get_pf_data_(type_data, pf_data):
                     'type incorreto', datetime.now(), None, 1, 'service get_pf_data')
                 )
                 await session.commit()
-                raise ParamError(status_code=400, detail='O campo type está incorreto.')
+                raise HTTPException(status_code=400, detail='O campo type está incorreto.')
             for i, item in enumerate(person_data):
                 person_db = Person_PF_Data_(
                     id=item.id,
@@ -400,9 +381,10 @@ async def get_pf_data_(type_data, pf_data):
                 )
                 person_data[i] = person_db
             return person_data
-        except ParamError as error:
+        except HTTPException as error:
             raise HTTPException(status_code=error.status_code, detail=error.detail)
         except Exception as error:
+            await session.close()
             session.add(Error_Logs(
                 str(error), datetime.now(), None, 1, 'service get_pf_data_'
             ))
@@ -482,7 +464,7 @@ async def get_pj_data_(type_data, pj_data):
                     'type incorreto', datetime.now(), None, 1, 'service get_pj_data')
                 )
                 await session.commit()
-                raise ParamError(status_code=400, detail='O campo type está incorreto.')
+                raise HTTPException(status_code=400, detail='O campo type está incorreto.')
             
             for i, item in enumerate(person_data):
                 person_db = Person_PJ_Data_(
@@ -502,9 +484,10 @@ async def get_pj_data_(type_data, pj_data):
                 )
                 person_data[i] = person_db
             return person_data
-        except ParamError as error:
+        except HTTPException as error:
             raise HTTPException(status_code=error.status_code, detail=error.detail)
         except Exception as error:
+            await session.close()
             session.add(Error_Logs(
                 str(error), datetime.now(), None, 1, 'get_pj_data_'
             ))
@@ -523,13 +506,14 @@ async def delete_person_(doctype, person_id):
                 await session.execute(delete(Person).where(Person.id == person_id))
                 await session.commit()
             else:
-                raise ParamError(status_code=400, detail='O parâmetro "doctype" deve ser 1 ou 2.')
+                raise HTTPException(status_code=400, detail='O parâmetro "doctype" deve ser 1 ou 2.')
             return Standard_Output(message='Operação realizada com sucesso.')
-        except ParamError as error:
+        except HTTPException as error:
             raise HTTPException(status_code=error.status_code, detail=error.detail)
         except IntegrityError:
             raise HTTPException(status_code=400, detail='Usuário não existe.')
         except Exception as error:
+            await session.close()
             session.add(Error_Logs(
                 str(error), datetime.now(), None, 1, 'delete_person_'
             ))

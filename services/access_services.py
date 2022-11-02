@@ -1,20 +1,19 @@
 from datetime import datetime
-from models.connection import async_session
-from models.tables import Error_Logs
-from fastapi import HTTPException
 from models.basemodels import Standard_Output
+from models.connection import async_session
+from models.tables import Access, Error_Logs
 from sqlalchemy.exc import IntegrityError, DBAPIError
+from fastapi import HTTPException
 
-async def add_error_log_(error_data):
+
+async def access_register_(access_data):
     async with async_session() as session:
         try:
-            session.add(Error_Logs(
-                error_data.log,
-                error_data.log_datetime,
-                error_data.user_id,
-                error_data.service_id,
-                error_data.endpoint)
-            )
+            session.add(Access(
+                user_id=access_data.user_id,
+                access_datetime=access_data.access_datetime,
+                endpoint=access_data.endpoint
+            ))
             await session.commit()
             return Standard_Output(message='Operação efetuada com sucesso.')
         except IntegrityError:
@@ -24,6 +23,7 @@ async def add_error_log_(error_data):
         except Exception as error:
             await session.close()
             session.add(Error_Logs(
-                str(error), datetime.now(), None, 1, 'service add_error_log_'))
+                str(error), datetime.now(), None, 1, 'service access_register_'
+            ))
             await session.commit()
             raise HTTPException(status_code=500, detail='Erro no servidor. Estamos trabalhando para corrigir')
