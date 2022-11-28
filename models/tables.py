@@ -1,5 +1,6 @@
-from sqlalchemy import ARRAY, Column, ForeignKey, Integer, String, Date, DateTime, Boolean, JSON, Float
+from sqlalchemy import Column, ForeignKey, Integer, String, Date, DateTime, Boolean, Float
 from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.dialects.postgresql import ARRAY, JSON
 
 Base = declarative_base()
 
@@ -163,8 +164,8 @@ class Item_Tax_Data(Base):
 class Sale(Base):
     __tablename__ = 'sale'
     id = Column(Integer, nullable=False, autoincrement=True, unique=True, primary_key=True)
-    client_id = Column(Integer, ForeignKey(Person.id), nullable=False)
-    salesman_id = Column(Integer, ForeignKey(Person.id), nullable=False)
+    client_id = Column(Integer, ForeignKey(Person.id, ondelete='SET NULL'))
+    salesman_id = Column(Integer, ForeignKey(Person.id, ondelete='SET NULL'))
     item_list = Column(JSON, nullable=False)
     sale_date = Column(Date, nullable=False)
     total = Column(Float, nullable=False)
@@ -197,7 +198,7 @@ class Billet(Base):
     '''
     __tablename__ = 'billet'
     id = Column(Integer, nullable=False, autoincrement=True, unique=True, primary_key=True)
-    sale_id = Column(Integer, ForeignKey(Sale.id))
+    sale_id = Column(Integer, ForeignKey(Sale.id, ondelete='SET NULL'))
     value = Column(Float, nullable=False)
     expire_date = Column(Date, nullable=False)
     status = Column(Integer, nullable=False)
@@ -221,7 +222,7 @@ class Billet(Base):
 class Invoice(Base):
     __tablename__ = 'invoice'
     id = Column(Integer, nullable=False, autoincrement=True, unique=True, primary_key=True)
-    sale_id = Column(Integer, ForeignKey(Sale.id), nullable=False)
+    sale_id = Column(Integer, ForeignKey(Sale.id, ondelete='SET NULL'))
     value = Column(Float)
     invoice_datetime = Column(DateTime)
     uuid = Column(String)
@@ -249,7 +250,7 @@ class Error_Logs(Base):
     id = Column(Integer, nullable=False, autoincrement=True, unique=True, primary_key=True)
     log = Column(String, nullable=False)
     log_datetime = Column(DateTime, nullable=False)
-    user_id = Column(Integer, ForeignKey(Person.id))
+    user_id = Column(Integer, ForeignKey(Person.id, ondelete='SET NULL'))
     service_id = Column(Integer, nullable=False)
     endpoint = Column(String, nullable=False)
 
@@ -263,7 +264,7 @@ class Error_Logs(Base):
 class Access(Base):
     __tablename__ = 'access'
     id = Column(Integer, nullable=False, autoincrement=True, unique=True, primary_key=True)
-    user_id = Column(Integer, ForeignKey(Person.id), nullable=False)
+    user_id = Column(Integer, ForeignKey(Person.id, ondelete='SET NULL'))
     access_datetime = Column(DateTime, nullable=False)
     endpoint = Column(String, nullable=False)
 

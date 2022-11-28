@@ -102,7 +102,7 @@ async def update_item_(item, item_simple_data, item_tax_data):
             item_db.ean = i.ean if i.ean else item_db.ean
             item_db.weight = i.weight if i.weight else item_db.weight
             item_db.inventory = i.inventory if i.inventory else item_db.inventory
-            item_db.is_active = i.is_active if i.is_active else item_db.is_active
+            item_db.is_active = i.is_active if i.is_active != None else item_db.is_active
 
             item_sdb.cost = ist.cost if ist.cost else item_sdb.cost
             item_sdb.brand = ist.brand if ist.brand else item_sdb.brand
@@ -131,10 +131,75 @@ async def update_item_(item, item_simple_data, item_tax_data):
             await session.commit()
             raise HTTPException(status_code=500, detail='Erro no servidor. Estamos trabalhando para corrigir.')
 
+async def get_simple_item_(type_data, item_data):
+    async with async_session() as session:
+        try:
+            td, itd = type_data, item_data
+            match td:
+                case 'all':
+                    result = await session.execute(
+                        select(Item)
+                    )
+                    result_item = result.scalars().all()
+                case 'id':
+                    result = await session.execute(
+                        select(Item)
+                        .where(Item.id == itd)
+                    )
+                    result_item = result.scalars().all()
+                case 'name':
+                    if '%' in itd:
+                        result = await session.execute(
+                            select(Item)
+                            .where(Item.name.like(itd))
+                        )
+                        result_item = result.scalars().all()
+                    else:
+                        result = await session.execute(
+                            select(Item)
+                            .where(Item.name == itd)
+                        )
+                        result_item = result.scalars().all()
+                case 'ean':
+                    result = await session.execute(
+                        select(Item)
+                        .where(Item.ean == itd)
+                    )
+                    result_item = result.scalars().all()
+                case _:
+                    raise HTTPException(status_code=400, detail='O campo type_data não corresponse a um campo válido.')
+            
+            for i, item in enumerate(result_item):
+                data = Item_(
+                    id=item.id,
+                    name=item.name,
+                    price=item.price,
+                    ean=item.ean,
+                    weight=item.weight,
+                    inventory=item.inventory,
+                    is_active=item.is_active
+                )
+                result_item[i] = data
+            return result_item
+                
+        except Exception as error:
+            session.add(Error_Logs(
+                str(error), datetime.now(), None, 1, 'service get_simple_item_'
+            ))
+            await session.commit()
+            raise HTTPException(status_code=500, detail='Erro no servidor. Estamos trabalhando para corrigir.')
+
 async def get_item_(type_data, item_data):
     async with async_session() as session:
         try:
             td, itd = type_data, item_data
+            if td == 'all':
+                result = await session.execute(
+                        select(Item, Item_Simple_Data, Item_Tax_Data)
+                        .join(Item_Simple_Data, Item.id == Item_Simple_Data.item_id)
+                        .join(Item_Tax_Data, Item.id == Item_Tax_Data.item_id)
+                    )
+                result_item = result.all()
             if td == 'id':
                 result = await session.execute(
                         select(Item, Item_Simple_Data, Item_Tax_Data)

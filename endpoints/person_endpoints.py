@@ -22,8 +22,10 @@ async def add_person_pf(new_person: Person_, new_person_data: Person_PF_Data_):
     4 - Cliente
     5 - Contador
     '''
-    if new_person.persontype == 0 or new_person.persontype > 5:
-        raise HTTPException(status_code=400, detail='O campo persontype deve ser entre 1 e 5.')
+    for pstype in new_person.persontype:
+        if pstype == 0 or pstype > 5:
+            raise HTTPException(status_code=400, detail='O campo persontype deve ser entre 1 e 5.')
+        
     return await new_person_pf(new_person, new_person_data)
 
 @router.post('/add-person-pj')
@@ -41,23 +43,25 @@ async def add_person_pj(new_person: Person_, new_person_data: Person_PJ_Data_):
     4 - Cliente
     5 - Contador
     '''
-    if new_person.persontype == 0 or new_person.persontype > 5:
-        raise HTTPException(status_code=400, detail='O campo persontype deve ser entre 1 e 5.')
+    for pstype in new_person.persontype:
+        if pstype == 0 or pstype > 5:
+            raise HTTPException(status_code=400, detail='O campo persontype deve ser entre 1 e 5.')
     return await new_person_pj(new_person, new_person_data)
 
 @router.post('/update-person-pf')
-async def update_person_pf(person: Person_, person_pf_data: Person_PF_Data_):
+async def update_person_pf(new_person: Person_, new_person_data: Person_PF_Data_):
     '''
     Altera os dados de um cadastro de pessoa física.
     '''
-    return await person_pf_update_(person, person_pf_data)
+    print(new_person, new_person_data)
+    return await person_pf_update_(new_person, new_person_data)
 
-@router.post('update-person-pj')
-async def update_person_pj(person: Person_, person_pj_data: Person_PJ_Data_):
+@router.post('/update-person-pj')
+async def update_person_pj(new_person: Person_, new_person_data: Person_PJ_Data_):
     '''
     Altera os dados de um cadastro de pessoa jurídica.
     '''
-    return await person_pj_update_(person, person_pj_data)
+    return await person_pj_update_(new_person, new_person_data)
 
 @router.get('/get-simple-person', response_model=List[Person_])
 async def get_simple_person(
@@ -67,7 +71,8 @@ async def get_simple_person(
     name: str = None,
     email: str = None,
     user_name: str = None,
-    doctype: int = None):
+    doctype: int = None,
+    is_active: bool = None):
     '''
     Obtém os dados comuns de um usuário, sem os dados adicionais
     e sem diferenciar pessoa física ou pessoa jurídica.
@@ -92,10 +97,14 @@ async def get_simple_person(
         return await get_simple_person_(type_data, user_name)
     elif type_data == 'doctype':
         return await get_simple_person_(type_data, doctype)
+    elif type_data == 'is_active':
+        return await get_simple_person_(type_data, is_active)
+    elif type_data == 'all' or type_data == 'all_sellers':
+        return await get_simple_person_(type_data, 0)
     else:
         raise HTTPException(status_code=400, detail='O campo data_type não corresponde a um campo válido.')
 
-@router.get('/get-pf-data', response_model=List[Person_PF_Data_])
+@router.get('/get-pf-data', response_model=List[Complete_PF_Person_])
 async def get_pf_data(
     type_data: str,
     id: int = None,
@@ -142,8 +151,8 @@ async def get_pf_data(
     if birth:
         return await get_pf_data_(type_data, birth)
 
-@router.get('/get-pj-data', response_model=List[Person_PJ_Data_])
-async def get_pf_data(
+@router.get('/get-pj-data', response_model=List[Complete_PJ_Person_])
+async def get_pj_data(
     type_data: str,
     id: int = None,
     person_id: int = None,
@@ -201,3 +210,14 @@ async def delete_person(doctype: int, person_id: int):
     outras tabelas relacionadas.
     '''
     return await delete_person_(doctype, person_id)
+
+@router.get('/register-check')
+async def register_check(type_data: str, data: str):
+    '''
+    Verifica se já existe um dado cadastrado
+    type_data deve ser:
+    'cpf'
+    'email'
+    Caso type_data não seja um desses itens, retorna erro 400.
+    '''
+    return await register_check_(type_data, data)

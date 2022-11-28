@@ -1,11 +1,11 @@
-from models.basemodels import Person_PF_Data_, Person_PJ_Data_, Standard_Output, Person_
-from models.tables import Error_Logs, Person, Person_PF_Data, Person_PJ_Data
+from models.basemodels import Complete_PF_Person_, Person_PF_Data_, Person_PJ_Data_, Standard_Output, Person_, Complete_PJ_Person_
+from models.tables import Error_Logs, Person, Person_PF_Data, Person_PJ_Data, Sale, Error_Logs, Access, Billet, Invoice
 from models.connection import async_session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
 from models.errors import ParamError
 from fastapi import HTTPException
-from sqlalchemy import delete
+from sqlalchemy import delete, or_
 from datetime import datetime
 
 async def new_person_pf(new_person, new_person_data):
@@ -154,7 +154,7 @@ async def person_pf_update_(person, person_data):
             p_db.user_name = p.user_name if p.user_name else p_db.user_name
             p_db.hash = p.hash if p.hash else p_db.hash
             p_db.persontype = p.persontype if p.persontype else p_db.persontype
-            p_db.is_active = p.is_active if p.is_active else p_db.is_active
+            p_db.is_active = p.is_active if p.is_active != None else p_db.is_active
 
             pd_db.cpf = pd.cpf if pd.cpf else pd_db.cpf
             pd_db.gender = pd.gender if pd.gender else pd_db.gender
@@ -204,7 +204,7 @@ async def person_pj_update_(person, person_data):
             p_db.user_name = p.user_name if p.user_name else p_db.user_name
             p_db.hash = p.hash if p.hash else p_db.hash
             p_db.persontype = p.persontype if p.persontype else p_db.persontype
-            p_db.is_active = p.is_active if p.is_active else p_db.is_active
+            p_db.is_active = p.is_active if p.is_active != None else p_db.is_active
 
             pd_db.cnpj = pd.cnpj if pd.cnpj else pd_db.cnpj
             pd_db.cp_name = pd.cp_name if pd.cp_name else pd_db.cp_name
@@ -232,64 +232,85 @@ async def person_pj_update_(person, person_data):
 
 async def get_simple_person_(type_data, p_data):
     async with async_session() as session:
-        try:
-            if type(p_data) == str:
-                data = p_data.lower()
-            else:
-                data = p_data
+        #try:
+        if type(p_data) == str:
+            data = p_data.lower()
+        else:
+            data = p_data
 
-            if type_data == 'id':
+        if type_data == 'id':
+            result = await session.execute(
+                select(Person).where(Person.id == data)
+            )
+            person = result.scalars().all()
+        elif type_data == 'alternative_id':
+            result = await session.execute(
+                select(Person).where(Person.alternative_id == data)
+            )
+            person = result.scalars().all()
+        elif type_data == 'name':
+            if '%' in data:
                 result = await session.execute(
-                    select(Person).where(Person.id == data)
-                )
-                person = result.scalars().all()
-            elif type_data == 'alternative_id':
-                result = await session.execute(
-                    select(Person).where(Person.alternative_id == data)
-                )
-                person = result.scalars().all()
-            elif type_data == 'name':
+                select(Person).where(Person.name.like(data))
+            )
+            else:
                 result = await session.execute(
                     select(Person).where(Person.name == data)
                 )
-                person = result.scalars().all()
-            elif type_data == 'email':
-                result = await session.execute(
-                    select(Person).where(Person.email == data)
-                )
-                person = result.scalars().all()
-            elif type_data == 'user_name':
-                result = await session.execute(
-                    select(Person).where(Person.user_name == data)
-                )
-                person = result.scalars().all()
-            elif type_data == 'doctype':
-                result = await session.execute(
-                    select(Person).where(Person.doctype == data)
-                )
-                person = result.scalars().all()
-            else:
-                session.add(Error_Logs(
-                    'type incorreto', datetime.now(), None, 1, 'service get_simple_person')
-                )
-                await session.commit()
-                raise HTTPException(status_code=400, detail='O campo type está incorreto.')
+            person = result.scalars().all()
+        elif type_data == 'email':
+            result = await session.execute(
+                select(Person).where(Person.email == data)
+            )
+            person = result.scalars().all()
+        elif type_data == 'user_name':
+            result = await session.execute(
+                select(Person).where(Person.user_name == data)
+            )
+            person = result.scalars().all()
+        elif type_data == 'doctype':
+            result = await session.execute(
+                select(Person).where(Person.doctype == data)
+            )
+            person = result.scalars().all()
+        elif type_data == 'is_active':
+            result = await session.execute(
+                select(Person).where(Person.is_active == data)
+            )
+            person = result.scalars().all()
+        elif type_data == 'all':
+            result = await session.execute(
+                select(Person)
+            )
+            person = result.scalars().all()
+        elif type_data == 'all_sellers':
+            result = await session.execute(
+                select(Person)
+                .where(Person.persontype.any_() == 3)
+            )
+            person = result.scalars().all()
+        else:
+            session.add(Error_Logs(
+                'type incorreto', datetime.now(), None, 1, 'service get_simple_person')
+            )
+            await session.commit()
+            raise HTTPException(status_code=400, detail='O campo type está incorreto.')
 
-            for i, item in enumerate(person):
-                person_db = Person_(
-                    id=item.id,
-                    alternative_id=item.alternative_id,
-                    name=item.name,
-                    email=item.email,
-                    user_name=item.user_name,
-                    hash=item.hash,
-                    doctype=item.doctype,
-                    persontype=item.persontype,
-                    is_active=item.is_active,
-                )
-                person[i] = person_db
-            return person
-        except HTTPException as error:
+        for i, item in enumerate(person):
+            person_db = Person_(
+                id=item.id,
+                alternative_id=item.alternative_id,
+                name=item.name,
+                email=item.email,
+                user_name=item.user_name,
+                hash=item.hash,
+                doctype=item.doctype,
+                persontype=item.persontype,
+                is_active=item.is_active,
+            )
+            person[i] = person_db
+        return person
+        '''except HTTPException as error:
             raise HTTPException(status_code=error.status_code, detail=error.detail)
         except Exception as error:
             await session.close()
@@ -297,7 +318,7 @@ async def get_simple_person_(type_data, p_data):
                 str(error), datetime.now(), None, 1, 'service get_simple_person_'
             ))
             await session.commit()
-            raise HTTPException(status_code=500, detail='Erro no servidor. Estamos trabalhando para corrigir.')
+            raise HTTPException(status_code=500, detail='Erro no servidor. Estamos trabalhando para corrigir.')'''
 
 async def get_pf_data_(type_data, pf_data):
     async with async_session() as session:
@@ -309,75 +330,103 @@ async def get_pf_data_(type_data, pf_data):
 
             if type_data == 'person_id':
                 result = await session.execute(
-                    select(Person_PF_Data).where(Person_PF_Data.person_id == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PF_Data)
+                        .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                        .where(Person_PF_Data.person_id == data)
+                    )
+                person_data = result.all()
             elif type_data == 'cpf':
                 result = await session.execute(
-                    select(Person_PF_Data).where(Person_PF_Data.cpf == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PF_Data)
+                        .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                        .where(Person_PF_Data.cpf == data)
+                    )
+                person_data = result.all()
             elif type_data == 'cep':
                 result = await session.execute(
-                    select(Person_PF_Data).where(Person_PF_Data.cep == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PF_Data)
+                        .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                        .where(Person_PF_Data.cep == data)
+                    )
+                person_data = result.all()
             elif type_data == 'public_place':
                 result = await session.execute(
-                    select(Person_PF_Data).where(Person_PF_Data.public_place == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PF_Data)
+                        .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                        .where(Person_PF_Data.public_place == data)
+                    )
+                person_data = result.all()
             elif type_data == 'place_number':
                 result = await session.execute(
-                    select(Person_PF_Data).where(Person_PF_Data.place_number == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PF_Data)
+                        .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                        .where(Person_PF_Data.place_number == data)
+                    )
+                person_data = result.all()
             elif type_data == 'district':
                 result = await session.execute(
-                    select(Person_PF_Data).where(Person_PF_Data.district == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PF_Data)
+                        .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                        .where(Person_PF_Data.district == data)
+                    )
+                person_data = result.all()
             elif type_data == 'city':
                 result = await session.execute(
-                    select(Person_PF_Data).where(Person_PF_Data.city == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PF_Data)
+                        .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                        .where(Person_PF_Data.city == data)
+                    )
+                person_data = result.all()
             elif type_data == 'uf':
                 result = await session.execute(
-                    select(Person_PF_Data).where(Person_PF_Data.uf == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PF_Data)
+                        .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                        .where(Person_PF_Data.uf == data)
+                    )
+                person_data = result.all()
             elif type_data == 'tel':
                 result = await session.execute(
-                    select(Person_PF_Data).where(Person_PF_Data.tel == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PF_Data)
+                        .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                        .where(Person_PF_Data.tel == data)
+                    )
+                person_data = result.all()
             elif type_data == 'birth':
                 result = await session.execute(
-                    select(Person_PF_Data).where(Person_PF_Data.birth == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PF_Data)
+                        .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                        .where(Person_PF_Data.birth == data)
+                    )
+                person_data = result.all()
             else:
-                session.add(Error_Logs(
-                    'type incorreto', datetime.now(), None, 1, 'service get_pf_data')
-                )
-                await session.commit()
                 raise HTTPException(status_code=400, detail='O campo type está incorreto.')
             for i, item in enumerate(person_data):
-                person_db = Person_PF_Data_(
-                    id=item.id,
-                    person_id=item.person_id,
-                    cpf=item.cpf,
-                    gender=item.gender,
-                    cep=item.cep,
-                    public_place=item.public_place,
-                    place_number=item.place_number,
-                    complement=item.complement,
-                    district=item.district,
-                    city=item.city,
-                    uf=item.uf,
-                    tel=item.tel,
-                    birth=item.birth
+                person_db = Complete_PF_Person_(
+                    person=Person_(
+                        id=item[0].id,
+                        alternative_id=item[0].alternative_id,
+                        name=item[0].name,
+                        email=item[0].email,
+                        user_name=item[0].user_name,
+                        hash=item[0].hash,
+                        doctype=item[0].doctype,
+                        persontype=item[0].persontype,
+                        is_active=item[0].is_active
+                    ), person_pf_data=Person_PF_Data_(
+                        id=item[1].id,
+                        person_id=item[1].person_id,
+                        cpf=item[1].cpf,
+                        gender=item[1].gender,
+                        cep=item[1].cep,
+                        public_place=item[1].public_place,
+                        place_number=item[1].place_number,
+                        complement=item[1].complement,
+                        district=item[1].district,
+                        city=item[1].city,
+                        uf=item[1].uf,
+                        tel=item[1].tel,
+                        birth=item[1].birth,
+                    )
                 )
                 person_data[i] = person_db
             return person_data
@@ -401,86 +450,126 @@ async def get_pj_data_(type_data, pj_data):
             
             if type_data == 'person_id':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.person_id == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.person_id == data)
+                    )
+                person_data = result.all()
             elif type_data == 'cnpj':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.cnpj == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.cnpj == data)
+                    )
+                person_data = result.all()
             elif type_data == 'cp_name':
-                result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.cp_name == data)
-                )
-                person_data = result.scalars().all()
+                if '%' in data:
+                    result = await session.execute(
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.cp_name.like(data))
+                    )
+                    person_data = result.all()
+                else:
+                    result = await session.execute(
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.cp_name == data)
+                    )
+                    person_data = result.all()
             elif type_data == 'ie':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.ie == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.ie == data)
+                    )
+                person_data = result.all()
             elif type_data == 'tel':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.tel == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.tel == data)
+                    )
+                person_data = result.all()
             elif type_data == 'cep':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.cep == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.cep == data)
+                    )
+                person_data = result.all()
             elif type_data == 'public_place':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.public_place == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.public_place == data)
+                    )
+                person_data = result.all()
             elif type_data == 'place_number':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.place_number == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.place_number == data)
+                    )
+                person_data = result.all()
             elif type_data == 'complement':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.complement == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.complement == data)
+                    )
+                person_data = result.all()
             elif type_data == 'district':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.district == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.district == data)
+                    )
+                person_data = result.all()
             elif type_data == 'city':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.city == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.city == data)
+                    )
+                person_data = result.all()
             elif type_data == 'uf':
                 result = await session.execute(
-                    select(Person_PJ_Data).where(Person_PJ_Data.uf == data)
-                )
-                person_data = result.scalars().all()
+                        select(Person, Person_PJ_Data)
+                        .join(Person_PJ_Data, Person.id == Person_PJ_Data.person_id)
+                        .where(Person_PJ_Data.uf == data)
+                    )
+                person_data = result.all()
             else:
-                session.add(Error_Logs(
-                    'type incorreto', datetime.now(), None, 1, 'service get_pj_data')
-                )
-                await session.commit()
                 raise HTTPException(status_code=400, detail='O campo type está incorreto.')
             
             for i, item in enumerate(person_data):
-                person_db = Person_PJ_Data_(
-                    id=item.id,
-                    person_id=item.person_id,
-                    cnpj=item.cnpj,
-                    cp_name=item.cp_name,
-                    ie=item.ie,
-                    tel=item.tel,
-                    cep=item.cep,
-                    public_place=item.public_place,
-                    place_number=item.place_number,
-                    complement=item.complement,
-                    district=item.district,
-                    city=item.city,
-                    uf=item.uf,
+                person_db = Complete_PJ_Person_(
+                    person= Person_(
+                        id=item[0].id,
+                        alternative_id=item[0].alternative_id,
+                        name=item[0].name,
+                        email=item[0].email,
+                        user_name=item[0].user_name,
+                        hash=item[0].hash,
+                        doctype=item[0].doctype,
+                        persontype=item[0].persontype,
+                        is_active=item[0].is_active
+                    ), person_pj_data= Person_PJ_Data_(
+                        id=item[1].id,
+                        person_id=item[1].person_id,
+                        cnpj=item[1].cnpj,
+                        cp_name=item[1].cp_name,
+                        ie=item[1].ie,
+                        tel=item[1].tel,
+                        cep=item[1].cep,
+                        public_place=item[1].public_place,
+                        place_number=item[1].place_number,
+                        complement=item[1].complement,
+                        district=item[1].district,
+                        city=item[1].city,
+                        uf=item[1].uf,
+                    )
                 )
                 person_data[i] = person_db
             return person_data
@@ -499,14 +588,12 @@ async def delete_person_(doctype, person_id):
         try:
             if doctype == 1:
                 await session.execute(delete(Person_PF_Data).where(Person_PF_Data.person_id == person_id))
-                await session.execute(delete(Person).where(Person.id == person_id))
-                await session.commit()
             elif doctype == 2:
                 await session.execute(delete(Person_PJ_Data).where(Person_PJ_Data.person_id == person_id))
-                await session.execute(delete(Person).where(Person.id == person_id))
-                await session.commit()
             else:
                 raise HTTPException(status_code=400, detail='O parâmetro "doctype" deve ser 1 ou 2.')
+            await session.execute(delete(Person).where(Person.id == person_id))
+            await session.commit()
             return Standard_Output(message='Operação realizada com sucesso.')
         except HTTPException as error:
             raise HTTPException(status_code=error.status_code, detail=error.detail)
@@ -519,3 +606,25 @@ async def delete_person_(doctype, person_id):
             ))
             await session.commit()
             raise HTTPException(status_code=500, detail='Erro no servidor. Estamos trabalhando para corrigir.')
+
+async def register_check_(type_data, data):
+    async with async_session() as session:
+        print(data)
+        if type_data == 'cpf':
+            result = await session.execute(
+                select(Person, Person_PF_Data)
+                .join(Person_PF_Data, Person.id == Person_PF_Data.person_id)
+                .where(Person_PF_Data.cpf == data)
+            )
+            result_list = result.all()
+        elif type_data == 'email':
+            result = await session.execute(
+                select(Person).where(Person.email == data)
+            )
+            result_list = result.all()
+        else:
+            raise HTTPException(status_code=400, detail='"type_data" incorreto')
+        
+        if len(result_list) > 0:
+            return True
+        return False

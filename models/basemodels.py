@@ -46,6 +46,14 @@ class Person_PJ_Data_(BaseModel):
     city: Optional[str]
     uf: Optional[str]
 
+class Complete_PF_Person_(BaseModel):
+    person: Person_
+    person_pf_data: Person_PF_Data_
+
+class Complete_PJ_Person_(BaseModel):
+    person: Person_
+    person_pj_data: Person_PJ_Data_
+
 class Item_(BaseModel):
     id: Optional[int]
     name: Optional[str]
